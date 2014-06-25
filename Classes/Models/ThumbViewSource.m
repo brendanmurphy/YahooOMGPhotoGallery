@@ -1,0 +1,155 @@
+//
+//  ThumbViewSource.m
+//  OMG Photo Gallery
+//
+//  Created by Brendan S. Murphy on 5/24/11.
+//  Copyright 2011 Yahoo! Inc. All rights reserved.
+//
+
+#import "ThumbViewSource.h"
+#import "JSONKit.h"
+
+#define DATA_MULTIPLIER_VAL 1
+#define NUM_OPS 1
+
+@implementation ThumbViewSource
+
+@synthesize modelOwner = _modelOwner;
+@synthesize galleryURL=_galleryURL;
+@synthesize thumbURLArray=_thumbURLArray;
+@synthesize imgURLArray=_imgURLArray;
+@synthesize captionArray=_captionArray;
+@synthesize headlineArray=_headlineArray;
+@synthesize numImages=_numImages;
+@synthesize galleryId=_galleryId;
+
+
+static ThumbViewSource* _sharedThumbViewSource = nil;
+
+
+- (id) initWithModelOwner: (id <ThumbViewSourceProtocol>) modelOwner andGalleryURL: (NSURL*) galleryURL andGalleryId: (NSString*) galleryId {    
+    if(self == [super init]){
+        self.modelOwner = modelOwner;
+        self.galleryURL = galleryURL;
+        self.galleryId = galleryId;
+        self.thumbURLArray = [[NSMutableArray alloc] init];
+        self.imgURLArray = [[NSMutableArray alloc] init];
+        self.captionArray = [[NSMutableArray alloc] init];
+        self.headlineArray = [[NSMutableArray alloc] init];
+    }
+    return self;
+}
+
+- (void)initLoadJSON
+{
+        
+    [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible: YES];
+    
+    // create operationQueue and load JSON
+    operationQueue = [[NSOperationQueue alloc] init];
+    [operationQueue setMaxConcurrentOperationCount:NUM_OPS];
+    NSInvocationOperation *operation = [[NSInvocationOperation alloc] initWithTarget:self selector:@selector(loadJSON) object:nil];
+    [operationQueue addOperation:operation];
+    [operation release];   
+    
+}
+
+
+- (void)loadJSON
+{
+        
+    NSData *jsonData = [NSData dataWithContentsOfURL:self.galleryURL options:NSDataReadingMapped error:nil];
+    NSDictionary *results = [jsonData objectFromJSONData];
+    [self performSelectorOnMainThread:@selector(didFinishLoadJSON:) withObject:results waitUntilDone:NO];
+    
+}
+
+
+- (void)didFinishLoadJSON:(NSDictionary *)results
+{
+    //NSLog(@"%@", results);
+    
+    [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible: NO];
+    
+    results = [[[results objectForKey:@"query"] objectForKey:@"results"] objectForKey:@"slideshow"];
+
+    self.numImages = [[results objectForKey:@"total_photos"] intValue];
+     //NSLog(@"self.numImages: %d", self.numImages);
+    
+    // ignore previously pendng json load 
+    if(self.thumbURLArray.count || ![[results objectForKey:@"id"] isEqualToString: self.galleryId]) return;
+    
+    results = [results objectForKey:@"photos"];
+
+    
+    for (int i = 0; i<DATA_MULTIPLIER_VAL; i++) {
+        
+        for (NSDictionary *item in results) {
+            
+            // thumbURLArray
+            NSString *thumbURLStr = [[[item objectForKey:@"imageInstances"] objectForKey:@"square"] objectForKey:@"url"];
+            [self.thumbURLArray addObject:(thumbURLStr.length > 0 ? [NSURL URLWithString:thumbURLStr] : [NSURL fileURLWithPath:@"GrayRect.png"])];
+            
+            // imgURLArray
+            NSString *imgURLStr = [[[item objectForKey:@"imageInstances"] objectForKey:@"medium"] objectForKey:@"url"];
+            imgURLStr = !imgURLStr ? [[[item objectForKey:@"imageInstances"] objectForKey:@"original"] objectForKey:@"url"] : imgURLStr;
+            [self.imgURLArray addObject:(imgURLStr.length > 0 ? [NSURL URLWithString:imgURLStr] : [NSURL fileURLWithPath:@"GrayRect.png"])];
+
+            // headlineArray
+            NSString *headlineStr = [item objectForKey:@"headline"];
+            [self.headlineArray addObject:(headlineStr.length > 0 ? headlineStr : @"headline not available...")];
+
+            // captionArray
+            NSString *captionStr = [item objectForKey:@"caption"];
+            [self.captionArray addObject:(captionStr.length > 0 ? captionStr : @"caption not available...")];
+            
+        }
+    }
+    
+    // tell my owner that model is ready
+    [self.modelOwner thumbViewModelReady:self];
+    
+}
+
+
++(ThumbViewSource*)sharedThumbViewModel
+{
+	@synchronized([ThumbViewSource class])
+	{
+		if (!_sharedThumbViewSource)
+			[[[self alloc] init]autorelease];
+        
+		return _sharedThumbViewSource;
+	}
+    
+	return nil;
+}
+
+
++(id)alloc
+{
+	@synchronized([ThumbViewSource class])
+	{
+		NSAssert(_sharedThumbViewSource == nil, @"Attempted to allocate a second instance of a singleton.");
+		_sharedThumbViewSource = [super alloc];
+		return _sharedThumbViewSource;
+	}
+    
+	return nil;
+}
+
+
+- (void)dealloc
+{
+    [operationQueue release];
+    [self.modelOwner release];
+    [self.galleryURL release];
+    [self.thumbURLArray release];
+    [self.imgURLArray release];
+    [self.captionArray release];
+    [self.headlineArray release];
+    [super dealloc];
+}
+
+
+@end

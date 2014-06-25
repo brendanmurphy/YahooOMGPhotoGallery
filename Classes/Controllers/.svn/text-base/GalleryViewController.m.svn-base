@@ -1,0 +1,341 @@
+//
+//  GalleryViewController.m
+//  OMG Photo Gallery
+//
+//  Created by Brendan S. Murphy on 5/24/11.
+//  Copyright 2011 Yahoo! Inc. All rights reserved.
+//
+
+#import "GalleryViewController.h"
+#import "PhotoViewController.h"
+#import "ThumbViewController.h"
+#import "PhotoViewSource.h"
+#import "Photo.h"
+#import "GalleryViewSource.h"
+#import "OMGAppDelegate.h"
+#import "GalleryViewCell.h"
+#import "EGOCache.h"
+#import "LoadMoreViewCell.h"
+
+#define LOADING_BG_TAG 999
+#define LOADING_BG_HORIZ_TAG 9999
+#define FLIP_ANIM NO
+#define CELL_ID @"GalleryViewCell"
+#define LOAD_MORE_CELL_ID @"LoadMoreViewCell"
+
+@implementation GalleryViewController
+@synthesize model = _model;
+@synthesize aboutView, flipButton, doneButton;
+
+
+- (void)viewDidLoad {
+	[super viewDidLoad];
+    
+    
+    self.aboutView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    
+    // en_US, en_PH, etc
+    NSLocale* curentLocale = [NSLocale currentLocale];
+    NSLog(@"%@", [curentLocale localeIdentifier]);
+    
+    shouldAutoRotate = NO;
+    
+    // hide interface with loadingView until data is loaded
+    [self showLoadingView];
+
+	[self.navigationController setToolbarHidden:YES animated:NO];
+    
+    // load galleryView data - call 'galleryViewModelReady' when loaded
+    self.model = [GalleryViewSource sharedTableViewModel];
+    [self.model initWithModelOwner: self];
+    [self.model initLoadNextPage];
+
+    // set titleView logo
+    [self setNavBarColor:@"orange"];
+    UIImage *image = [UIImage imageNamed:@"titleLogo.png"];
+    UIImageView *imageView = [[UIImageView alloc]initWithImage:image];
+    self.navigationItem.titleView = imageView;
+    [imageView release];
+
+    // about button
+    aboutButton = [[UIBarButtonItem alloc]initWithTitle:NSLocalizedString(@"About", @"WHAT: About button title  WHERE: GalleryViewController.m") style:UIBarButtonItemStylePlain target:self action:@selector(toggleAboutView:)];
+    self.navigationItem.rightBarButtonItem = aboutButton;
+    
+    // done button
+    doneButton = [[UIBarButtonItem alloc]initWithTitle:NSLocalizedString(@"Done", @"WHAT: Done button title  WHERE: GalleryViewController.m") style:UIBarButtonItemStylePlain target:self action:@selector(toggleAboutView:)];
+    
+    // set table details
+    self.title = NSLocalizedString(@"Galleries", @"WHAT: Galleries button title  WHERE: GalleryViewController.m");
+    self.view.backgroundColor = [UIColor colorWithRed:0.17 green:0.18 blue:0.20 alpha:1.0];
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.separatorColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.08 alpha:1.0];
+    self.tableView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
+    self.tableView.rowHeight = 95; // 75 pixel square image + 10 pixels of padding on either side.
+    
+    // add about view
+    [self.tableView addSubview:aboutView];
+    [aboutView setHidden:YES];
+
+    
+}
+
+-(IBAction) mobileSiteBtnTapped{
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey: @"URL: omg mobile site"]]];
+}
+
+-(IBAction) copyrightBtnTapped{
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey: @"URL: copyright"]]];
+}
+
+-(IBAction) privicyBtnTapped{
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey: @"URL: privacy policy"]]];
+}
+
+-(IBAction) termsOfServiceBtnTapped{
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey: @"URL: terms of service"]]];
+}
+
+-(IBAction) helpBtnTapped{
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey: @"URL: help"]]];    
+}
+
+
+- (void) galleryViewSourceReady:(GalleryViewSource *)paramSender {
+    [self.tableView reloadData];
+    [self hideLoadingView];
+    [self.tableView setUserInteractionEnabled:YES];
+}
+
+
+- (void)viewWillAppear:(BOOL)animated {
+	[super viewWillAppear:animated]; 
+	[self.navigationController setToolbarHidden:YES animated:YES];
+}
+
+
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation {
+    return shouldAutoRotate;
+}
+
+
+#pragma mark Table view methods
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+	return 1;
+}
+
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    NSInteger count = [self.model.galleryQueryArray count];
+    if(count == 0){
+        return 1;
+    } else if(count == self.model.total){
+        return count + 1;
+    } else {
+        return count;
+    }
+}
+
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    
+    NSInteger count = [self.model.galleryQueryArray count];
+    
+    if (count == 0){ 
+        
+        // no data - return empty cell
+        
+        UITableViewCell *cell = [[[UITableViewCell alloc] init] autorelease]; 
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        return cell;
+        
+    } else if (indexPath.row == count) { 
+        
+        // return "load more" cell if more galleries available
+        
+        LoadMoreViewCell *cell = (LoadMoreViewCell *) [tableView dequeueReusableCellWithIdentifier:LOAD_MORE_CELL_ID];
+        if (cell == nil) cell = [[[LoadMoreViewCell alloc] initWithFrame:CGRectZero reuseIdentifier:LOAD_MORE_CELL_ID] autorelease];
+        [cell setLoadingState:NO];
+        return cell;
+        
+    } else {
+        
+        // return gallery cell with title, thumbnail and description 
+        
+        GalleryViewCell *cell = (GalleryViewCell *)[tableView dequeueReusableCellWithIdentifier:CELL_ID];	
+        cell = (cell == nil) ? [[[GalleryViewCell alloc] initWithFrame:CGRectZero reuseIdentifier:CELL_ID] autorelease] : cell;
+        
+        [cell setCellWithTitle:[self.model.titleArray objectAtIndex:indexPath.row] andDesc:[self.model.descArray objectAtIndex:indexPath.row] andImgURL:[self.model.thumbURLArray objectAtIndex:indexPath.row] andNumPhotos:[self.model.numPhotosArray objectAtIndex:indexPath.row]];
+        
+        NSString* galleryId = [self.model.galleryIdArray objectAtIndex:[indexPath row]];
+        if([[NSUserDefaults standardUserDefaults] boolForKey:galleryId]){
+            [cell.check setHidden:NO];
+        } else {
+            [cell.check setHidden:YES];
+        }
+        
+        return cell; 
+    }
+    
+}
+
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    
+    NSInteger count = [self.model.galleryQueryArray count];
+    
+    if (count == 0){
+
+		return;
+
+	} else if (indexPath.row == count) {
+        
+        // "load more" cell pressed
+        
+        LoadMoreViewCell *cell = (LoadMoreViewCell*)[tableView cellForRowAtIndexPath:indexPath];
+        [cell setLoadingState:YES];        
+        [self.model initLoadNextPage];
+        [self.tableView setUserInteractionEnabled:NO];
+        
+        
+	} else {
+        
+        // gallery cell pressed
+        
+        // show network activity indicator
+        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible: YES];
+        
+        // hilight cell
+        [[tableView dequeueReusableCellWithIdentifier:CELL_ID] setSelected:YES animated:NO];
+        
+        // get selected gallery details
+        NSURL* galleryURL = [self.model.galleryQueryArray objectAtIndex:[indexPath row]];
+        NSString* galleryTitle = [self.model.titleArray objectAtIndex:[indexPath row]];
+        NSString* galleryDesc = [self.model.descArray objectAtIndex:[indexPath row]];
+        NSString* galleryCount = [self.model.numPhotosArray objectAtIndex:[indexPath row]];
+        NSString* galleryId = [self.model.galleryIdArray objectAtIndex:[indexPath row]];
+
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:galleryId];
+        
+        // create thumbViewController
+        ThumbViewController* thumbViewController = [[[ThumbViewController alloc]initWithGalleryURL:galleryURL andTitle:galleryTitle andDescription:galleryDesc andCount:galleryCount andId:galleryId]autorelease];	
+        
+        // push thumbViewController onto navigationController stack
+        [self.navigationController pushViewController:thumbViewController animated:YES];
+        
+    }
+    
+}
+
+
+- (void)showLoadingView
+{
+    
+    UIImageView *loadingBg = [[[UIImageView alloc] initWithImage:[UIImage imageNamed:@"Default.png"]]autorelease];
+    loadingBg.tag = LOADING_BG_TAG;
+    [self.parentViewController.view addSubview:loadingBg];
+
+    spinner = [[[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite]autorelease];
+    CGRect spinnerFrame = spinner.frame;
+    spinnerFrame.origin.x = self.view.bounds.size.width / 2.0 - spinner.frame.size.width / 2.0;
+    spinnerFrame.origin.y = (self.view.bounds.size.height - spinnerFrame.size.height) / 2.0 + 65;
+    spinner.frame = spinnerFrame;
+    [loadingBg addSubview:spinner];
+    [spinner startAnimating];
+    
+}
+
+
+- (void)hideLoadingView
+{
+        
+    [UIView beginAnimations:@"hide_loading_view" context:nil];
+    
+    if(FLIP_ANIM){
+        [UIView setAnimationDuration:.5];
+        [UIView setAnimationCurve:UIViewAnimationCurveEaseInOut];
+        [UIView setAnimationTransition: UIViewAnimationTransitionFlipFromRight forView:self.view cache:YES];		
+    } else {
+        [UIView setAnimationDuration:0.3];
+        [UIView setAnimationCurve: UIViewAnimationCurveEaseInOut];
+        CGRect bgFrame = [self.parentViewController.view viewWithTag:LOADING_BG_TAG].frame;
+        bgFrame.origin.y = 500;
+        [self.parentViewController.view viewWithTag:LOADING_BG_TAG].frame = bgFrame;
+    }
+    
+    [UIView setAnimationDelegate:self]; 
+    [UIView setAnimationDidStopSelector:@selector(hideLoadingViewDone:finished:context:)];
+    [UIView commitAnimations];
+    
+    shouldAutoRotate = YES;
+
+    
+}
+
+
+-(void)hideLoadingViewDone:(NSString*)animationID finished:(NSNumber*)finished context:(void*)context
+{
+    [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible: NO];
+    [[self.parentViewController.view viewWithTag:LOADING_BG_TAG]removeFromSuperview];
+}
+
+
+- (void)setNavBarColor:(NSString*)colorStr {
+	if(colorStr == @"black"){
+		self.navigationController.navigationBar.tintColor = nil;
+		self.navigationController.navigationBar.barStyle = UIBarStyleBlackTranslucent;
+		[[UIApplication sharedApplication] setStatusBarStyle:UIStatusBarStyleBlackTranslucent];
+	} else if (colorStr == @"orange"){
+		self.navigationController.navigationBar.tintColor = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:0.0];
+		[[UIApplication sharedApplication] setStatusBarStyle: UIStatusBarStyleDefault];
+	}
+}
+
+
+- (void)toggleAboutView:(id)sender {
+    
+    if(!self.tableView.isUserInteractionEnabled) return;
+    
+    // stop scrolling and disable 
+    self.tableView.scrollEnabled = NO;
+    [self.tableView  scrollRectToVisible:CGRectMake(0, self.tableView.frame.origin.y, self.tableView.frame.size.width, self.tableView.frame.size.height) animated:NO];
+    
+    // setup flip animation
+	[UIView setAnimationDelegate:self];
+	[UIView setAnimationDidStopSelector:@selector(animationDidStop:animationIDfinished:finished:context:)];
+	[UIView beginAnimations:nil context:nil];
+	[UIView setAnimationDuration:0.75];
+	[UIView setAnimationTransition:([self.tableView superview] ?
+									UIViewAnimationTransitionFlipFromLeft : UIViewAnimationTransitionFlipFromRight)
+                           forView:self.tableView cache:YES];
+	
+    // show/hide aboutView
+    if (!aboutView.isHidden){
+        [aboutView setHidden:YES];
+        self.tableView.scrollEnabled = YES;
+        self.title = NSLocalizedString(@"Galleries", @"WHAT: Galleries button title  WHERE: GalleryViewController.m");
+    } else {
+        [aboutView setHidden:NO];
+    }
+    
+	[UIView commitAnimations];
+	
+	// swap about/done buttons accordingly
+	if (!aboutView.isHidden)
+		self.navigationItem.rightBarButtonItem = doneButton;
+	else
+		self.navigationItem.rightBarButtonItem = aboutButton;
+}
+
+
+- (void)dealloc {
+	[super dealloc];
+    [aboutButton release];
+    [doneButton release];
+}
+
+
+@end
+

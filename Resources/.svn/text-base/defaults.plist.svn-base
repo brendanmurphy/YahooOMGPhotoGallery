@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLEAR_CACHE</key>
+	<false/>
+	<key>galleriesQueryPrefix</key>
+	<string>http://gamma.yql.yahooapis.com/v1/public/yql?q=SELECT * FROM yahoo.media.slideshowsSLIDESHOWS_RANGE WHERE list_id=&apos;</string>
+	<key>galleriesQuerySuffix</key>
+	<string>&apos; and  region=&apos;PH&apos; and lang=&apos;en-PH&apos; and site=&apos;omg&apos;&amp;format=json</string>
+	<key>galleryQueryPrefix</key>
+	<string>http://gamma.yql.yahooapis.com/v1/public/yql?q=SELECT * FROM yahoo.media.slideshowSLIDESHOW_RANGE WHERE list_id=&apos;</string>
+	<key>galleryQuerySuffix</key>
+	<string>&apos; and region=&apos;PH&apos; and lang=&apos;en-PH&apos; and site=&apos;omg&apos;&amp;format=json</string>
+	<key>maxNumImages</key>
+	<integer>50</integer>
+	<key>slideshowImageDurationSeconds</key>
+	<integer>3</integer>
+	<key>total: Latest Galleries</key>
+	<integer>10</integer>
+	<key>total: Top Story Galleries</key>
+	<integer>11</integer>
+	<key>UUID: Featured Galleries</key>
+	<string>dab9164c-4aab-4c47-a95e-48750fdaa4ba</string>
+	<key>UUID: Latest Galleries</key>
+	<string>9551032e-7a6f-49f3-a847-5184561eb11f</string>
+	<key>UUID: Top Story Galleries</key>
+	<string>f89d0da4-f75c-4c6e-bbaf-12d112d4d413</string>
+	<key>URL: help</key>
+	<string>http://m.yahoo.com/w/customercare%3B_ylt=A2KIP7eQ5wROwiQAwBAHNS4J?ref=web&amp;.intl=ph&amp;.lang=en-ph</string>
+	<key>URL: omg mobile site</key>
+	<string>http://omg.yahoo.com/iphone/</string>
+	<key>URL: copyright</key>
+	<string>http://m.yahoo.com/w/web/legal/copyright?.ts=1308949076&amp;.intl=ph&amp;.lang=en-ph</string>
+	<key>URL: terms of service</key>
+	<string>http://m.yahoo.com/w/web/legal/tos?.ts=1308948058&amp;.intl=ph&amp;.lang=en-ph</string>
+	<key>URL: privacy policy</key>
+	<string>http://m.yahoo.com/w/web/privacy?.intl=ph&amp;.lang=en-ph</string>
+</dict>
+</plist>
